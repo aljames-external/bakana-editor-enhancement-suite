@@ -33,7 +33,7 @@ export class EditorController {
      */
     get settings() {
         try {
-            if (game?.settings?.get) {
+            if (typeof game !== "undefined" && game?.settings?.get) {
                 return {
                     enableTabCompletion: game.settings.get(MODULE_ID, "enableTabCompletion") ?? DEFAULT_SETTINGS.enableTabCompletion,
                     tabSize: game.settings.get(MODULE_ID, "tabSize") ?? DEFAULT_SETTINGS.tabSize,
@@ -73,16 +73,16 @@ export class EditorController {
         const isEscape = event.key === "Escape";
         const isArrowDown = event.key === "ArrowDown";
         const isArrowUp = event.key === "ArrowUp";
+        const isArrowRight = event.key === "ArrowRight";
 
-        // 1. Popup navigation when popup is visible
+        // 1. Popup navigation and selection when popup is visible
         if (this.popup.isVisible()) {
             if (isTab) {
                 event.preventDefault();
                 event.stopPropagation();
-                if (isShift) {
-                    this.popup.setSelectedIndex(this.popup.selectedIndex - 1);
-                } else {
-                    this.popup.setSelectedIndex(this.popup.selectedIndex + 1);
+                const selected = this.popup.getSelectedCandidate();
+                if (selected) {
+                    this._commitCandidate(selected);
                 }
                 return;
             }
@@ -109,6 +109,16 @@ export class EditorController {
                 event.stopPropagation();
                 this.popup.setSelectedIndex(this.popup.selectedIndex - 1);
                 return;
+            }
+
+            if (isArrowRight && this.element.selectionStart === this.element.selectionEnd) {
+                const selected = this.popup.getSelectedCandidate();
+                if (selected) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    this._commitCandidate(selected);
+                    return;
+                }
             }
 
             if (isEscape) {
