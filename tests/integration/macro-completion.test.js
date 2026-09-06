@@ -65,17 +65,13 @@ describe("Macro Completion Integration", () => {
         assert.equal(textarea.value, "actor.system");
     });
 
-    it("completes deeply nested properties: 'actor.system.attributes.hp.'", () => {
+    it("completes deeply nested properties on Tab: 'actor.system.attributes.hp.'", () => {
         textarea.value = "actor.system.attributes.hp.";
         textarea.selectionStart = 27;
         textarea.selectionEnd = 27;
 
         textarea.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true }));
-        assert.equal(controller.popup.isVisible(), true);
-
-        const candidateNames = controller.popup.candidates.map((c) => c.name);
-        assert.ok(candidateNames.includes("value"));
-        assert.ok(candidateNames.includes("max"));
+        assert.equal(textarea.value, "actor.system.attributes.hp.max");
     });
 
     it("completes 'token.x' and 'token.y'", () => {

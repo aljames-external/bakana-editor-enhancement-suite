@@ -33,7 +33,7 @@ describe("EditorController Component", () => {
         assert.equal(textarea.value, "  ");
     });
 
-    it("autocompletes single matching candidate immediately", () => {
+    it("autocompletes single matching candidate immediately on Tab", () => {
         textarea.value = "game.user.n";
         textarea.selectionStart = 11;
         textarea.selectionEnd = 11;
@@ -45,28 +45,22 @@ describe("EditorController Component", () => {
         assert.equal(textarea.value, "game.user.name");
     });
 
-    it("shows popup when multiple candidates match and commits selection on Tab", () => {
-        textarea.value = "game.";
-        textarea.selectionStart = 5;
-        textarea.selectionEnd = 5;
+    it("shows popup during typing input and commits selection on Tab", () => {
+        textarea.value = "game.user.n";
+        textarea.selectionStart = 11;
+        textarea.selectionEnd = 11;
 
-        // First Tab opens popup
-        const tabEvent1 = new KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true });
-        textarea.dispatchEvent(tabEvent1);
-
-        assert.equal(tabEvent1.defaultPrevented, true);
+        // User types: input event fires
+        textarea.dispatchEvent(new Event("input", { bubbles: true }));
         assert.equal(controller.popup.isVisible(), true);
 
-        const firstCandidate = controller.popup.getSelectedCandidate();
-        assert.ok(firstCandidate);
+        // User presses Tab: commits candidate
+        const tabEvent = new KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true });
+        textarea.dispatchEvent(tabEvent);
 
-        // Second Tab tab-completes the selected candidate
-        const tabEvent2 = new KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true });
-        textarea.dispatchEvent(tabEvent2);
-
-        assert.equal(tabEvent2.defaultPrevented, true);
+        assert.equal(tabEvent.defaultPrevented, true);
         assert.equal(controller.popup.isVisible(), false);
-        assert.equal(textarea.value, `game.${firstCandidate.name}`);
+        assert.equal(textarea.value, "game.user.name");
     });
 
     it("navigates popup with ArrowDown and commits on Tab", () => {
@@ -75,7 +69,7 @@ describe("EditorController Component", () => {
         textarea.selectionEnd = 5;
 
         // Open popup
-        textarea.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true }));
+        textarea.dispatchEvent(new Event("input", { bubbles: true }));
         assert.equal(controller.popup.isVisible(), true);
 
         // ArrowDown to next item
@@ -100,7 +94,7 @@ describe("EditorController Component", () => {
         textarea.selectionEnd = 5;
 
         // Open popup
-        textarea.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true }));
+        textarea.dispatchEvent(new Event("input", { bubbles: true }));
         assert.equal(controller.popup.isVisible(), true);
 
         const chosenCandidate = controller.popup.getSelectedCandidate();
@@ -120,7 +114,7 @@ describe("EditorController Component", () => {
         textarea.selectionStart = 5;
         textarea.selectionEnd = 5;
 
-        textarea.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true }));
+        textarea.dispatchEvent(new Event("input", { bubbles: true }));
         assert.equal(controller.popup.isVisible(), true);
 
         const escEvent = new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true });

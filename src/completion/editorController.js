@@ -49,11 +49,12 @@ export class EditorController {
 
     /**
      * Attach DOM event listeners to the textarea.
+     * Uses capture on keydown to intercept Tab before default browser focus shift.
      * @private
      */
     _attachEvents() {
         if (!this.element) return;
-        this.element.addEventListener("keydown", this._onKeyDown);
+        this.element.addEventListener("keydown", this._onKeyDown, { capture: true });
         this.element.addEventListener("input", this._onInput);
         this.element.addEventListener("blur", this._onBlur);
         this.element.addEventListener("click", this._onClick);
@@ -182,7 +183,7 @@ export class EditorController {
 
         this._activeCompletion = completion;
 
-        // Single candidate match: complete immediately
+        // Single candidate match: tab-complete immediately
         if (completion.candidates.length === 1) {
             this._commitCandidate(completion.candidates[0]);
             return;
@@ -208,8 +209,9 @@ export class EditorController {
                 this._showPopup(updatedCompletion);
             }
         } else {
-            // Display popup dropdown with first candidate selected
-            this._showPopup(completion);
+            // Commit first candidate on Tab
+            const firstCandidate = completion.candidates[0];
+            this._commitCandidate(firstCandidate);
         }
     }
 
@@ -363,15 +365,25 @@ export class EditorController {
     }
 
     /**
-     * Handle input events on textarea to update popup live if active.
+     * Handle input events on textarea to display live autocomplete popup.
      * @private
      */
     _onInput() {
-        if (!this.popup.isVisible()) return;
-
+        const text = this.element.value;
         const cursor = this.element.selectionEnd;
+        const textBeforeCursor = text.slice(0, cursor);
+
+        // Hide if cursor is preceded by whitespace
+        if (/[\s\r\n]$/.test(textBeforeCursor)) {
+            if (this.popup.isVisible()) {
+                this.popup.hide();
+                this._activeCompletion = null;
+            }
+            return;
+        }
+
         const completion = Completer.getCompletions(
-            this.element.value,
+            text,
             cursor,
             this.macroDoc,
             this.settings.maxSuggestions
@@ -381,8 +393,10 @@ export class EditorController {
             this._activeCompletion = completion;
             this._showPopup(completion);
         } else {
-            this.popup.hide();
-            this._activeCompletion = null;
+            if (this.popup.isVisible()) {
+                this.popup.hide();
+                this._activeCompletion = null;
+            }
         }
     }
 
@@ -414,7 +428,7 @@ export class EditorController {
      */
     destroy() {
         if (this.element) {
-            this.element.removeEventListener("keydown", this._onKeyDown);
+            this.element.removeEventListener("keydown", this._onKeyDown, { capture: true });
             this.element.removeEventListener("input", this._onInput);
             this.element.removeEventListener("blur", this._onBlur);
             this.element.removeEventListener("click", this._onClick);
