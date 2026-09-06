@@ -24,6 +24,21 @@ import { log } from "../lib/logger.js";
  */
 
 /**
+ * Safely lookup a global variable across window and globalThis.
+ * @param {string} name - Global variable name
+ * @returns {*} Found global value or undefined
+ */
+function getGlobalValue(name) {
+    if (typeof window !== "undefined" && name in window && window[name] !== undefined) {
+        return window[name];
+    }
+    if (typeof globalThis !== "undefined" && name in globalThis && globalThis[name] !== undefined) {
+        return globalThis[name];
+    }
+    return undefined;
+}
+
+/**
  * Autocompletion Engine for Foundry VTT Macro Editor.
  * Emulates browser DevTools console tab completion.
  */
@@ -45,7 +60,7 @@ export class Completer {
         }
 
         // Bracket string access match: e.g. `game["act` or `canvas['tok`
-        const bracketMatch = textBeforeCursor.match(/([a-zA-Z0-9_$]+(?:\.[a-zA-Z0-9_$]+|\[\d+\])*)\[(["'])([^"']*)$/);
+        const bracketMatch = textBeforeCursor.match(/([a-zA-Z0-9_$]+(?:\.[a-zA-Z0-9_$]+|\[\d+\]|(?:\([^)]*\)))*)\[(["'])([^"']*)$/);
         if (bracketMatch) {
             const rootExpr = bracketMatch[1];
             const quoteChar = bracketMatch[2];
@@ -63,8 +78,8 @@ export class Completer {
             };
         }
 
-        // Member access match: e.g. `game.user.`, `game.user.ch`, `canvas?.tokens?.pla`
-        const memberMatch = textBeforeCursor.match(/((?:[a-zA-Z0-9_$]+(?:\??\.[a-zA-Z0-9_$]+|\[\d+\]|\[["'][^"']+["']\])*)?(?:\??\.))([a-zA-Z0-9_$]*)$/);
+        // Member access match: e.g. `game.user.`, `game.user.ch`, `canvas?.tokens?.pla`, `game.actors.get("id").`
+        const memberMatch = textBeforeCursor.match(/((?:[a-zA-Z0-9_$]+(?:\??\.[a-zA-Z0-9_$]+|\[\d+\]|\[["'][^"']+["']\]|(?:\([^)]*\)))*?)(?:\??\.))([a-zA-Z0-9_$]*)$/);
         if (memberMatch) {
             let rootExpr = memberMatch[1];
             // Strip trailing dot or optional dot from root expression
@@ -156,10 +171,14 @@ export class Completer {
      * @returns {object} Scope mapping names to runtime values.
      */
     static getMacroScope(macroDoc) {
-        const controlledToken = canvas?.tokens?.controlled?.[0] ?? null;
-        const userChar = game?.user?.character ?? null;
+        const gameObj = getGlobalValue("game");
+        const canvasObj = getGlobalValue("canvas");
+        const chatMessageObj = getGlobalValue("ChatMessage");
+
+        const controlledToken = canvasObj?.tokens?.controlled?.[0] ?? null;
+        const userChar = gameObj?.user?.character ?? null;
         const activeActor = controlledToken?.actor ?? userChar ?? null;
-        const activeSpeaker = ChatMessage?.getSpeaker ? ChatMessage.getSpeaker({ actor: activeActor, token: controlledToken }) : {};
+        const activeSpeaker = chatMessageObj?.getSpeaker ? chatMessageObj.getSpeaker({ actor: activeActor, token: controlledToken }) : {};
 
         const scopeObj = {
             speaker: activeSpeaker,
@@ -182,37 +201,29 @@ export class Completer {
         scope.args = [];
         scope.this = macroDoc ?? null;
 
-        // Assign Foundry ambient globals if present in window/environment
-        if (typeof game !== "undefined") scope.game = game;
-        if (typeof canvas !== "undefined") scope.canvas = canvas;
-        if (typeof ui !== "undefined") scope.ui = ui;
-        if (typeof CONFIG !== "undefined") scope.CONFIG = CONFIG;
-        if (typeof foundry !== "undefined") scope.foundry = foundry;
-        if (typeof CONST !== "undefined") scope.CONST = CONST;
-        if (typeof Hooks !== "undefined") scope.Hooks = Hooks;
-        if (typeof ChatMessage !== "undefined") scope.ChatMessage = ChatMessage;
-        if (typeof Actor !== "undefined") scope.Actor = Actor;
-        if (typeof Item !== "undefined") scope.Item = Item;
-        if (typeof Token !== "undefined") scope.Token = Token;
-        if (typeof Scene !== "undefined") scope.Scene = Scene;
-        if (typeof Macro !== "undefined") scope.Macro = Macro;
-        if (typeof Roll !== "undefined") scope.Roll = Roll;
-        if (typeof PIXI !== "undefined") scope.PIXI = PIXI;
-        if (typeof Sequencer !== "undefined") scope.Sequencer = Sequencer;
-        if (typeof Tagger !== "undefined") scope.Tagger = Tagger;
-        if (typeof Warpgate !== "undefined") scope.Warpgate = Warpgate;
-        if (typeof ItemMacro !== "undefined") scope.ItemMacro = ItemMacro;
-        if (typeof fromUuid !== "undefined") scope.fromUuid = fromUuid;
-        if (typeof fromUuidSync !== "undefined") scope.fromUuidSync = fromUuidSync;
-        if (typeof renderTemplate !== "undefined") scope.renderTemplate = renderTemplate;
-        if (typeof loadTemplates !== "undefined") scope.loadTemplates = loadTemplates;
-
-        // Assign window globals
-        if (typeof window !== "undefined") {
-            scope.window = window;
-            scope.document = window.document;
-            scope.console = window.console;
+        // Populate Foundry ambient globals
+        for (const name of FOUNDRY_GLOBALS) {
+            const val = getGlobalValue(name);
+            if (val !== undefined) {
+                scope[name] = val;
+            }
         }
+
+        // Populate Standard JS globals
+        for (const name of STANDARD_GLOBALS) {
+            const val = getGlobalValue(name);
+            if (val !== undefined) {
+                scope[name] = val;
+            }
+        }
+
+        const docObj = getGlobalValue("document");
+        const consoleObj = getGlobalValue("console");
+        const windowObj = getGlobalValue("window");
+
+        if (docObj) scope.document = docObj;
+        if (consoleObj) scope.console = consoleObj;
+        if (windowObj) scope.window = windowObj;
 
         return scope;
     }
@@ -226,7 +237,6 @@ export class Completer {
     static resolvePath(expr, scope) {
         if (!expr) return undefined;
 
-        // Tokenize path into segments: handles `a.b?.c[0]["d"]`
         const cleanExpr = expr.trim();
         const segments = [];
         const segmentRegex = /(?:^\s*([a-zA-Z_$][a-zA-Z0-9_$]*))|(?:\??\.([a-zA-Z_$][a-zA-Z0-9_$]*))|(?:\[(\d+)\])|(?:\[(["'])([^"']+)\4\])/g;
@@ -248,7 +258,7 @@ export class Completer {
             }
         }
 
-        // If regular regex didn't consume the whole path cleanly, fallback to simple dot split
+        // If regex didn't consume the path, fallback to dot split
         if (segments.length === 0) {
             const rawParts = cleanExpr.split(/\??\./);
             for (const part of rawParts) {
@@ -263,11 +273,11 @@ export class Completer {
 
         if (rootName in scope) {
             current = scope[rootName];
-        } else if (typeof window !== "undefined" && rootName in window) {
-            current = window[rootName];
         } else {
-            return undefined;
+            current = getGlobalValue(rootName);
         }
+
+        if (current === undefined) return undefined;
 
         for (let i = 1; i < segments.length; i++) {
             if (current === null || current === undefined) {
@@ -298,6 +308,13 @@ export class Completer {
         let curr = target;
         let depth = 0;
         const maxDepth = 10;
+        const excludedProps = new Set([
+            "__proto__",
+            "__defineGetter__",
+            "__defineSetter__",
+            "__lookupGetter__",
+            "__lookupSetter__"
+        ]);
 
         while (curr !== null && curr !== undefined && depth < maxDepth) {
             let names = [];
@@ -308,7 +325,7 @@ export class Completer {
             }
 
             for (const name of names) {
-                if (name === "__proto__" || name === "constructor" && depth > 0) continue;
+                if (excludedProps.has(name) || name === "constructor" && depth > 0) continue;
                 if (propertyMap.has(name)) continue;
 
                 let kind = COMPLETION_KINDS.PROPERTY;
@@ -334,7 +351,13 @@ export class Completer {
                     kind = COMPLETION_KINDS.PROPERTY;
                 }
 
-                propertyMap.set(name, { name, kind, detail });
+                propertyMap.set(name, {
+                    name,
+                    kind,
+                    detail,
+                    isOwn: depth === 0,
+                    depth
+                });
             }
 
             // Stop at Object.prototype to avoid polluting with generic Object methods unless inspecting Object itself
@@ -359,8 +382,9 @@ export class Completer {
 
         // Sort candidates:
         // 1. Exact case prefix matches first
-        // 2. Public properties (no leading '_') before private/protected ('_')
-        // 3. Alphabetical
+        // 2. Own properties before prototype properties
+        // 3. Public properties (no leading '_') before private/protected ('_')
+        // 4. Alphabetical
         candidates.sort((a, b) => {
             const aExact = a.name.startsWith(prefix);
             const bExact = b.name.startsWith(prefix);
@@ -371,6 +395,11 @@ export class Completer {
             const bPrivate = b.name.startsWith("_");
             if (!aPrivate && bPrivate) return -1;
             if (aPrivate && !bPrivate) return 1;
+
+            if (a.isOwn && !b.isOwn) return -1;
+            if (!a.isOwn && b.isOwn) return 1;
+
+            if (a.depth !== b.depth) return a.depth - b.depth;
 
             return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
         });
@@ -454,23 +483,22 @@ export class Completer {
             }
         }
 
-        // 6. Any other properties on window
-        if (typeof window !== "undefined") {
-            try {
-                const windowKeys = Object.getOwnPropertyNames(window);
-                for (const key of windowKeys) {
-                    if (key.startsWith("_") || candidateMap.has(key)) continue;
-                    if (!prefix || key.toLowerCase().startsWith(normalizedPrefix)) {
-                        candidateMap.set(key, {
-                            name: key,
-                            kind: typeof window[key] === "function" ? COMPLETION_KINDS.METHOD : COMPLETION_KINDS.PROPERTY,
-                            detail: "window"
-                        });
-                    }
+        // 6. Any other properties on window / global scope
+        try {
+            const win = typeof window !== "undefined" ? window : globalThis;
+            const windowKeys = Object.getOwnPropertyNames(win);
+            for (const key of windowKeys) {
+                if (key.startsWith("_") || candidateMap.has(key)) continue;
+                if (!prefix || key.toLowerCase().startsWith(normalizedPrefix)) {
+                    candidateMap.set(key, {
+                        name: key,
+                        kind: typeof win[key] === "function" ? COMPLETION_KINDS.METHOD : COMPLETION_KINDS.PROPERTY,
+                        detail: "window"
+                    });
                 }
-            } catch (e) {
-                // Ignore window introspection restriction if any
             }
+        } catch (e) {
+            // Ignore window introspection restriction if any
         }
 
         const candidates = Array.from(candidateMap.values());
@@ -515,35 +543,40 @@ export class Completer {
      * @returns {{candidates: CompletionCandidate[], prefix: string, startPos: number, endPos: number, longestCommonPrefix: string, accessType: string, quoteChar: string|null}|null} Completion result
      */
     static getCompletions(text, cursorIndex, macroDoc = null, maxSuggestions = 50) {
-        const parsed = this.parseExpressionAtCursor(text, cursorIndex);
-        if (!parsed) return null;
+        try {
+            const parsed = this.parseExpressionAtCursor(text, cursorIndex);
+            if (!parsed) return null;
 
-        const scope = this.getMacroScope(macroDoc);
-        let candidates = [];
+            const scope = this.getMacroScope(macroDoc);
+            let candidates = [];
 
-        if (parsed.isRoot) {
-            const localVars = this.extractLocalVariables(text, cursorIndex);
-            candidates = this.getRootCompletions(parsed.propertyPrefix, localVars, scope);
-        } else {
-            const targetObj = this.resolvePath(parsed.rootExpr, scope);
-            if (targetObj !== undefined && targetObj !== null) {
-                candidates = this.inspectProperties(targetObj, parsed.propertyPrefix);
+            if (parsed.isRoot) {
+                const localVars = this.extractLocalVariables(text, cursorIndex);
+                candidates = this.getRootCompletions(parsed.propertyPrefix, localVars, scope);
+            } else {
+                const targetObj = this.resolvePath(parsed.rootExpr, scope);
+                if (targetObj !== undefined && targetObj !== null) {
+                    candidates = this.inspectProperties(targetObj, parsed.propertyPrefix);
+                }
             }
+
+            if (candidates.length === 0) return null;
+
+            const candidateNames = candidates.map((c) => c.name);
+            const lcp = findLongestCommonPrefix(candidateNames);
+
+            return {
+                candidates: candidates.slice(0, maxSuggestions),
+                prefix: parsed.propertyPrefix,
+                startPos: parsed.startPos,
+                endPos: parsed.endPos,
+                longestCommonPrefix: lcp,
+                accessType: parsed.accessType,
+                quoteChar: parsed.quoteChar
+            };
+        } catch (err) {
+            log.debug("Error generating completions:", err);
+            return null;
         }
-
-        if (candidates.length === 0) return null;
-
-        const candidateNames = candidates.map((c) => c.name);
-        const lcp = findLongestCommonPrefix(candidateNames);
-
-        return {
-            candidates: candidates.slice(0, maxSuggestions),
-            prefix: parsed.propertyPrefix,
-            startPos: parsed.startPos,
-            endPos: parsed.endPos,
-            longestCommonPrefix: lcp,
-            accessType: parsed.accessType,
-            quoteChar: parsed.quoteChar
-        };
     }
 }
