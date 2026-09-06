@@ -1,0 +1,38 @@
+name: System / Module Adapter Request
+description: Request support for a new game system or editor integration.
+title: "[Adapter Request]: <System/Module Name>"
+labels: ["adapter-request"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for requesting an adapter! Supporting new systems and module environments is a key goal of this project.
+        
+        To help us build this adapter, please fill out the details below. We will likely need to discuss corner cases with you, so providing a contact method is highly appreciated.
+  
+  - type: input
+    id: system_name
+    attributes:
+      label: System / Module / Editor Name
+      description: What game system or third-party editor module are you requesting support for?
+      placeholder: e.g., Monaco Editor or custom sheet
+    validations:
+      required: true
+
+  - type: input
+    id: discord_handle
+    attributes:
+      label: Discord Handle
+      description: We will likely need to discuss corner cases, data structures, or test scenarios with you. Please provide your Discord handle.
+      placeholder: e.g., username#0000 or username
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional_features
+    attributes:
+      label: Additional System or Editor Features
+      description: Describe any specific globals, properties, or completion behaviors you feel would be useful for this system or editor environment.
+      placeholder: e.g., "It would be great to auto-complete system-specific roll functions..."
+    validations:
+      required: false
