@@ -1,0 +1,12 @@
+{
+  "BEES.Settings.EnableTabCompletion.Name": "Enable Tab Completion",
+  "BEES.Settings.EnableTabCompletion.Hint": "Enable DevTools console-style tab completion in the standard macro editor.",
+  "BEES.Settings.TabSize.Name": "Tab Size",
+  "BEES.Settings.TabSize.Hint": "The number of spaces inserted when pressing Tab on an empty line or at indentation points.",
+  "BEES.Settings.AutoIndent.Name": "Auto Indentation",
+  "BEES.Settings.AutoIndent.Hint": "Automatically preserve indentation level when pressing Enter.",
+  "BEES.Settings.MaxSuggestions.Name": "Max Suggestions",
+  "BEES.Settings.MaxSuggestions.Hint": "Maximum number of candidate completions displayed in the suggestion popup list.",
+  "BEES.Settings.LogVerbosity.Name": "Log Verbosity",
+  "BEES.Settings.LogVerbosity.Hint": "Control the level of diagnostic log output sent to the developer console."
+}

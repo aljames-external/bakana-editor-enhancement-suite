@@ -1,0 +1,34 @@
+{
+  "id": "bakana-editor-enhancement-suite",
+  "title": "Bakana's Editor Enhancement Suite",
+  "description": "<p>DevTools-style tab completion and editor enhancements for the Foundry VTT macro editor.</p>",
+  "version": "#{VERSION}#",
+  "authors": [
+    {
+      "name": "Bakana",
+      "url": "https://github.com/aljames-arctic"
+    }
+  ],
+  "compatibility": {
+    "minimum": "12",
+    "verified": "14"
+  },
+  "esmodules": [
+    "src/module.js"
+  ],
+  "styles": [
+    "styles/bakana-editor.css"
+  ],
+  "languages": [
+    {
+      "lang": "en",
+      "name": "English",
+      "path": "lang/en.json"
+    }
+  ],
+  "url": "#{URL}#",
+  "manifest": "#{MANIFEST}#",
+  "download": "#{DOWNLOAD}#",
+  "license": "LICENSE",
+  "relationships": {}
+}
